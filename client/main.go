@@ -405,7 +405,17 @@ func main() {
 			}
 			con, _ := session.OpenStream()
 			defer con.Close()
-			con.Write([]byte{0x01})//TODO
+			psw := []byte("wh0syourdadd")
+
+			con.Write(psw)//TODO
+			rtn := make([]byte, 3)
+			con.Read(rtn)
+			if "OKK"!=string(rtn[:]){
+				log.Println("认证失败")
+				return nil, errors.Wrap(err, "createConn(): auth error")
+			}else{
+				log.Println("密码对了，认证成功")
+			}
 
 			if err != nil {
 				return nil, errors.Wrap(err, "createConn()")

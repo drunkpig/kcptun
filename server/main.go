@@ -63,9 +63,17 @@ func handleMux(conn net.Conn, config *Config) {
 			log.Println(err)
 			return
 		}
-		authToken := make([]byte, 1)
+		authToken := make([]byte, 13)
 		stream.Read(authToken)//带超时的read,
-		fmt.Println(authToken) //TODO
+		auth := string(authToken[:])
+		fmt.Println(auth) //TODO
+		if auth != "wh0syourdaddy" {
+			log.Println("密码不对")
+			stream.Write([]byte("ERR"))
+			return
+		}else{
+			stream.Write([]byte("OKK"))
+		}
 		go func(p1 *smux.Stream) {
 			var p2 net.Conn
 			var err error
