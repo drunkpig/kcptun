@@ -403,6 +403,10 @@ func main() {
 			} else {
 				session, err = smux.Client(generic.NewCompStream(kcpconn), smuxConfig)
 			}
+			con, _ := session.OpenStream()
+			defer con.Close()
+			con.Write([]byte{0x01})//TODO
+
 			if err != nil {
 				return nil, errors.Wrap(err, "createConn()")
 			}

@@ -63,7 +63,9 @@ func handleMux(conn net.Conn, config *Config) {
 			log.Println(err)
 			return
 		}
-
+		authToken := make([]byte, 1)
+		stream.Read(authToken)//带超时的read,
+		fmt.Println(authToken) //TODO
 		go func(p1 *smux.Stream) {
 			var p2 net.Conn
 			var err error

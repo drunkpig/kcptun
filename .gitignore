@@ -2,7 +2,8 @@
 *.o
 *.a
 *.so
-
+.idea
+.vscode
 # Folders
 _obj
 _test
