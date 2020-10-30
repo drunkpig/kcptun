@@ -86,6 +86,11 @@ func main() {
 	myApp.Version = VERSION
 	myApp.Flags = []cli.Flag{
 		cli.StringFlag{
+			Name:  "authtoken, t",
+			Value: "1111111111-1111111111-1111111111-111",
+			Usage: "auth token",
+		},
+		cli.StringFlag{
 			Name:  "localaddr,l",
 			Value: ":12948",
 			Usage: "local listen address",
@@ -241,6 +246,7 @@ func main() {
 	}
 	myApp.Action = func(c *cli.Context) error {
 		config := Config{}
+		config.AuthToken = c.String("authtoken")
 		config.LocalAddr = c.String("localaddr")
 		config.RemoteAddr = c.String("remoteaddr")
 		config.Key = c.String("key")
@@ -301,7 +307,7 @@ func main() {
 		checkError(err)
 		listener, err := net.ListenTCP("tcp", addr)
 		checkError(err)
-
+		log.Println("auth token:", config.AuthToken)
 		log.Println("smux version:", config.SmuxVer)
 		log.Println("listening on:", listener.Addr())
 		log.Println("encryption:", config.Crypt)
@@ -403,11 +409,12 @@ func main() {
 			} else {
 				session, err = smux.Client(generic.NewCompStream(kcpconn), smuxConfig)
 			}
+
+			//**************************************客户端认证开始
 			con, _ := session.OpenStream()
 			defer con.Close()
-			psw := []byte("wh0syourdadd")
 
-			con.Write(psw)//TODO
+			con.Write([]byte(config.AuthToken))
 			rtn := make([]byte, 3)
 			con.Read(rtn)
 			if "OKK"!=string(rtn[:]){
@@ -416,7 +423,7 @@ func main() {
 			}else{
 				log.Println("密码对了，认证成功")
 			}
-
+			//************************************认证结束
 			if err != nil {
 				return nil, errors.Wrap(err, "createConn()")
 			}

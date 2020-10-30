@@ -1,4 +1,5 @@
 {
+	"authtoken": "15042961-f748-45fb-8f84-ca70df4b2194",
 	"localaddr": ":3000",
 	"remoteaddr": "127.0.0.1:2000",
 	"key": "PASSWORD",
