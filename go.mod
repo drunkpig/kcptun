@@ -10,6 +10,8 @@ require (
 	github.com/xtaci/smux v1.5.14
 	github.com/xtaci/tcpraw v1.2.25
 	golang.org/x/crypto v0.0.0-20200728195943-123391ffb6de
+	github.com/go-redis/redis/v8 v8.3.3
+	github.com/agrison/go-commons-lang v0.0.0-20200208220349-58e9fcb95174
 )
 
 go 1.14

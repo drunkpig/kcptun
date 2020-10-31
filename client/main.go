@@ -419,7 +419,7 @@ func main() {
 			con.Read(rtn)
 			if "OKK"!=string(rtn[:]){
 				log.Println("认证失败")
-				return nil, errors.Wrap(err, "createConn(): auth error")
+				return nil, errors.New("createConn(): auth error")
 			}else{
 				log.Println("密码对了，认证成功")
 			}
@@ -437,7 +437,7 @@ func main() {
 					return session
 				} else {
 					log.Println("re-connecting:", err)
-					time.Sleep(time.Second)
+					time.Sleep(time.Second*5)
 				}
 			}
 		}

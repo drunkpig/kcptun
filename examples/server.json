@@ -1,4 +1,5 @@
 {
+        "redis": "redis://:Gr11disG00d@gw.mkmerich.com:10005",
         "listen": ":2000",
         "target": "127.0.0.1:9999",
         "key": "PASSWORD",
