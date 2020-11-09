@@ -8,7 +8,7 @@ import (
 var ctx = context.Background()
 
 func mainx() {
-	options, _ := redis.ParseURL("redis://:Gr11disG00d@gw.mkmerich.com:10005/0")
+	options, _ := redis.ParseURL("redis://:@localhost:6379/0")
 	rdb := redis.NewClient(options)
 
 	err := rdb.Set(ctx, "key", "value", 0).Err()

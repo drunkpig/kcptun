@@ -86,10 +86,10 @@ func handleMux(conn net.Conn, config *Config) {
 
 		//==========================================auth check
 		if !isMuxAuthed{
-			authToken := make([]byte, 36)
+			authToken := make([]byte, config.TokenLength)
 			n, err := stream.Read(authToken)//带超时的read,
-			if err!=nil || n!=36{
-				log.Println("密码长度不对")
+			if err!=nil || n!=config.TokenLength{
+				log.Println("token length error: length=", n)
 				stream.Write([]byte("ERR"))
 				isMuxAuthed = false
 				return
@@ -99,14 +99,20 @@ func handleMux(conn net.Conn, config *Config) {
 			redisServ := NewRedisServer(config.Redis)
 			_, err = redisServ.Server.Get(context.Background(), authTokenAsRedisKey).Result()
 			if err!=nil{
-				log.Println("redis倒闭")
+				log.Println("redis error")
 				isMuxAuthed = false
 				stream.Write([]byte("ERR"))
 				return
 			}else{
-				log.Println("登录成功")
-				stream.Write([]byte("OKK"))
-				isMuxAuthed = true
+				if err!=redis.Nil{
+					log.Println("authentication succ! token=", authTokenAsRedisKey)
+					stream.Write([]byte("OKK"))
+					isMuxAuthed = true
+				}else{
+					log.Println("token not exists! token=", authTokenAsRedisKey)
+					isMuxAuthed = true
+					return
+				}
 			}
 		}
 		//==================================================
@@ -178,8 +184,13 @@ func main() {
 	myApp.Flags = []cli.Flag{
 		cli.StringFlag{
 			Name:  "redis,r",
-			Value: "localhost:6379",//redis://arbitrary_usrname:password@ipaddress:6379/0
+			Value: "redis://:@localhost:6379",//redis://arbitrary_usrname:password@ipaddress:6379/0
 			Usage: "redis server address",
+		},
+		cli.IntFlag{
+			Name:  "tokenlength",
+			Value: 36,
+			Usage: "authentication token length",
 		},
 		cli.StringFlag{
 			Name:  "listen,l",
@@ -327,6 +338,7 @@ func main() {
 	myApp.Action = func(c *cli.Context) error {
 		config := Config{}
 		config.Redis = c.String("redis")
+		config.TokenLength = c.Int("tokenlength")
 		config.Listen = c.String("listen")
 		config.Target = c.String("target")
 		config.Key = c.String("key")
@@ -381,6 +393,7 @@ func main() {
 			config.NoDelay, config.Interval, config.Resend, config.NoCongestion = 1, 10, 2, 1
 		}
 		log.Println("redis:", config.Redis)
+		log.Println("token length:", config.TokenLength)
 		log.Println("version:", VERSION)
 		log.Println("smux version:", config.SmuxVer)
 		log.Println("listening on:", config.Listen)

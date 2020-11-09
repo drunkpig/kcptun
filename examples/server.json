@@ -1,5 +1,6 @@
 {
         "redis": "redis://:@localhost:6379",
+        "tokenlength": 36,
         "listen": ":2000",
         "target": "gw.mkmerich.com:20000",
         "key": "PASSWORD",

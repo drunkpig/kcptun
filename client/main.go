@@ -418,10 +418,10 @@ func main() {
 			rtn := make([]byte, 3)
 			con.Read(rtn)
 			if "OKK"!=string(rtn[:]){
-				log.Println("认证失败")
-				return nil, errors.New("createConn(): auth error")
+				log.Println("authentication failed! token=", config.AuthToken)
+				return nil, errors.New("createConn(): authentication error")
 			}else{
-				log.Println("密码对了，认证成功")
+				log.Println("authentication success! token=", config.AuthToken)
 			}
 			//************************************认证结束
 			if err != nil {
