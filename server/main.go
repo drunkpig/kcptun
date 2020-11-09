@@ -57,6 +57,7 @@ var VERSION = "SELFBUILD"
 func handleMux(conn net.Conn, config *Config) {
 	// check if target is unix domain socket
 	var isUnix bool
+	var isMuxAuthed bool = false
 	if _, _, err := net.SplitHostPort(config.Target); err != nil {
 		isUnix = true
 	}
@@ -84,26 +85,30 @@ func handleMux(conn net.Conn, config *Config) {
 		}
 
 		//==========================================auth check
-		authToken := make([]byte, 36)
-		n, err := stream.Read(authToken)//带超时的read,
-		if err!=nil || n!=36{
-			log.Println("密码长度不对")
-			stream.Write([]byte("ERR"))
-			return
+		if !isMuxAuthed{
+			authToken := make([]byte, 36)
+			n, err := stream.Read(authToken)//带超时的read,
+			if err!=nil || n!=36{
+				log.Println("密码长度不对")
+				stream.Write([]byte("ERR"))
+				isMuxAuthed = false
+				return
+			}
+			authTokenAsRedisKey := string(authToken[:])
+			//get from redis
+			redisServ := NewRedisServer(config.Redis)
+			_, err = redisServ.Server.Get(context.Background(), authTokenAsRedisKey).Result()
+			if err!=nil{
+				log.Println("redis倒闭")
+				isMuxAuthed = false
+				stream.Write([]byte("ERR"))
+				return
+			}else{
+				log.Println("登录成功")
+				stream.Write([]byte("OKK"))
+				isMuxAuthed = true
+			}
 		}
-		authTokenAsRedisKey := string(authToken[:])
-		//get from redis
-		redisServ := NewRedisServer(config.Redis)
-		_, err = redisServ.Server.Get(context.Background(), authTokenAsRedisKey).Result()
-		if err!=nil{
-			log.Println("密码不对")
-			stream.Write([]byte("ERR"))
-			return
-		}else{
-			log.Println("登录成功")
-			stream.Write([]byte("OKK"))
-		}
-
 		//==================================================
 		go func(p1 *smux.Stream) {
 			var p2 net.Conn

@@ -437,7 +437,7 @@ func main() {
 					return session
 				} else {
 					log.Println("re-connecting:", err)
-					time.Sleep(time.Second*5)
+					time.Sleep(time.Second*1)
 				}
 			}
 		}
@@ -458,6 +458,7 @@ func main() {
 		go generic.SnmpLogger(config.SnmpLog, config.SnmpPeriod)
 		rr := uint16(0)
 		for {
+
 			p1, err := listener.AcceptTCP()
 			if err != nil {
 				log.Fatalf("%+v", err)
