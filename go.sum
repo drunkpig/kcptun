@@ -1,3 +1,4 @@
+astuart.co/limio v0.0.0-20180925070603-17c081b6f2f5/go.mod h1:8+o8o9Wka9czNhZyxbvZTSeU8rCQHDlj+0TuHQBpCAM=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/agrison/go-commons-lang v0.0.0-20200208220349-58e9fcb95174/go.mod h1:u+Zwm0OKtJAGx+DXcmp2NNwZ0GKtV80ipbF/uhKhQdw=
 github.com/cespare/xxhash/v2 v2.1.1 h1:6MnRN8NT7+YBpUIWxHtefFZOKTAPgGjpQSxqLNn0+qY=
