@@ -99,7 +99,7 @@ func handleMux(conn net.Conn, config *Config) {
 			redisServ := NewRedisServer(config.Redis)
 			_, err = redisServ.Server.Get(context.Background(), authTokenAsRedisKey).Result()
 			if err!=nil{
-				log.Println("redis error")
+				log.Println("redis error: ", err)
 				isMuxAuthed = false
 				stream.Write([]byte("ERR"))
 				return
