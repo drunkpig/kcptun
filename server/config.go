@@ -3,12 +3,58 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"sync"
+	"github.com/juju/ratelimit"
 )
+
+// TrafficAudit for ratelimit, traffic statistics
+type TrafficAudit struct{
+	MuxWaitGroup             sync.WaitGroup     //一个客户端会有多个mux连接，要等全部连接都释放才从内存里去掉
+	RateLimitBucket          *ratelimit.Bucket   // 使用这个bucket对属于同一个用户(email)进行限速，流量统计
+
+	TrafficUpdatorLock       sync.Mutex
+	UpstreamTrafficByte      float64             // 上行流量统计
+	DownstreamTrafficByte    float64             // 下行流量
+}
+
+func newTrafficAudit() *TrafficAudit  {
+	ta := new(TrafficAudit)
+	ta.RateLimitBucket = ratelimit.NewBucketWithRate(100*1024, 1*1024*1024) //先测试100KB/s
+	ta.UpstreamTrafficByte = 0
+	ta.DownstreamTrafficByte = 0
+	return ta
+}
+
+func (ta *TrafficAudit) updateTraffic(upByte, downByte float64){
+	ta.TrafficUpdatorLock.Lock()
+	defer ta.TrafficUpdatorLock.Unlock()
+	ta.UpstreamTrafficByte += upByte
+	ta.DownstreamTrafficByte += downByte
+}
+
+type AuditorMgr struct {
+	auditor  map[string]*TrafficAudit  // ip:TrafficAudit
+}
+
+func NewTrafficAuditor() *AuditorMgr {
+	auditor := new(AuditorMgr)
+	auditor.auditor = make(map[string]*TrafficAudit, 10)
+	return auditor
+}
+
+func(this *AuditorMgr) AddAuditor(email string)bool{
+	//如果email的auditor已经存在就增加引用，否则新建
+	// TODO
+	return false
+}
 
 // Config for server
 type Config struct {
 	Redis        string `json:"redis"`
-	TokenLength  int `json:"tokenlength"`
+	TokenLength  int `json:"tokenlength"`  // 鉴权token的长度，36
+	Bandwidth    int `json:"bandwidth"`
+	TrafficAuditor *AuditorMgr
+
 	Listen       string `json:"listen"`
 	Target       string `json:"target"`
 	Key          string `json:"key"`

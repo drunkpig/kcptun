@@ -192,6 +192,11 @@ func main() {
 			Value: 36,
 			Usage: "authentication token length",
 		},
+		cli.IntFlag{
+			Name:  "bandwidth",
+			Value: 100,
+			Usage: "VPS server max bandwidth (Mbps)",
+		},
 		cli.StringFlag{
 			Name:  "listen,l",
 			Value: ":29900",
@@ -339,6 +344,7 @@ func main() {
 		config := Config{}
 		config.Redis = c.String("redis")
 		config.TokenLength = c.Int("tokenlength")
+		config.Bandwidth = c.Int("bandwidth")
 		config.Listen = c.String("listen")
 		config.Target = c.String("target")
 		config.Key = c.String("key")
@@ -393,7 +399,8 @@ func main() {
 			config.NoDelay, config.Interval, config.Resend, config.NoCongestion = 1, 10, 2, 1
 		}
 		log.Println("redis:", config.Redis)
-		log.Println("token length:", config.TokenLength)
+		log.Println("auth token length:", config.TokenLength)
+		log.Println("VPS max bandwidth:", config.Bandwidth)
 		log.Println("version:", VERSION)
 		log.Println("smux version:", config.SmuxVer)
 		log.Println("listening on:", config.Listen)
