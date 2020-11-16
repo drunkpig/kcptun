@@ -12,7 +12,7 @@ type TrafficAudit struct{
 	MuxWaitGroup             sync.WaitGroup     //一个客户端会有多个mux连接，要等全部连接都释放才从内存里去掉
 	RateLimitBucket          *ratelimit.Bucket   // 使用这个bucket对属于同一个用户(email)进行限速，流量统计
 
-	TrafficUpdatorLock       sync.Mutex
+	//TrafficUpdatorLock       sync.Mutex        //采用chan没有必要用锁了
 	UpstreamTrafficByte      float64             // 上行流量统计
 	DownstreamTrafficByte    float64             // 下行流量
 }
@@ -25,14 +25,16 @@ func newTrafficAudit() *TrafficAudit  {
 	return ta
 }
 
-func (ta *TrafficAudit) updateTraffic(upByte, downByte float64){
-	ta.TrafficUpdatorLock.Lock()
-	defer ta.TrafficUpdatorLock.Unlock()
+func (ta *TrafficAudit) updateTraffic(upByte float64, downByte float64){
+	//采用chan机制，没有必要再用锁了
+	//ta.TrafficUpdatorLock.Lock()
+	//defer ta.TrafficUpdatorLock.Unlock()
 	ta.UpstreamTrafficByte += upByte
 	ta.DownstreamTrafficByte += downByte
 }
 
 type AuditorMgr struct {
+	mu sync.Mutex
 	auditor  map[string]*TrafficAudit  // ip:TrafficAudit
 }
 
@@ -42,10 +44,27 @@ func NewTrafficAuditor() *AuditorMgr {
 	return auditor
 }
 
+//返回值代表是否是新添加的
 func(this *AuditorMgr) AddAuditor(email string)bool{
 	//如果email的auditor已经存在就增加引用，否则新建
-	// TODO
-	return false
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	if _, ok := this.auditor[email]; ok{
+		// email相关的结构已经存在
+		return false
+	}else{
+		ta := newTrafficAudit()
+		this.auditor[email] = ta
+		return true
+	}
+}
+
+func(this *AuditorMgr)UpdateTraffic(email string, upBytes, downBytes float64){
+	if auditor, ok := this.auditor[email]; ok{
+		auditor.updateTraffic(upBytes, downBytes)
+	}else{
+		// TODO log error
+	}
 }
 
 // Config for server
