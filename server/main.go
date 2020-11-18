@@ -12,6 +12,8 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +24,7 @@ import (
 	"github.com/xtaci/kcptun/generic"
 	"github.com/xtaci/smux"
 	"github.com/xtaci/tcpraw"
+	"github.com/tidwall/gjson"
 )
 
 const (
@@ -57,6 +60,7 @@ var VERSION = "SELFBUILD"
 func handleMux(conn net.Conn, config *Config) {
 	// check if target is unix domain socket
 	var isUnix bool
+	var userEmail string
 	var isMuxAuthed bool = false
 	if _, _, err := net.SplitHostPort(config.Target); err != nil {
 		isUnix = true
@@ -97,7 +101,7 @@ func handleMux(conn net.Conn, config *Config) {
 			authTokenAsRedisKey := string(authToken[:])
 			//get from redis
 			redisServ := NewRedisServer(config.Redis)
-			_, err = redisServ.Server.Get(context.Background(), authTokenAsRedisKey).Result()
+			jsonval, err := redisServ.Server.Get(context.Background(), authTokenAsRedisKey).Result()
 			if err!=nil{
 				log.Println("redis error: ", err)
 				isMuxAuthed = false
@@ -107,10 +111,14 @@ func handleMux(conn net.Conn, config *Config) {
 				if err!=redis.Nil{
 					log.Println("authentication succ! token=", authTokenAsRedisKey)
 					stream.Write([]byte("OKK"))
+					email := gjson.Get(jsonval, "email")
+					userEmail = email.String()
+					log.Println(userEmail)
+					config.AuditorMgr.AddAuditor(userEmail)
 					isMuxAuthed = true
 				}else{
 					log.Println("token not exists! token=", authTokenAsRedisKey)
-					isMuxAuthed = true
+					isMuxAuthed = false
 					return
 				}
 			}
@@ -130,12 +138,13 @@ func handleMux(conn net.Conn, config *Config) {
 				p1.Close()
 				return
 			}
-			handleClient(p1, p2, config.Quiet)
+			handleClient(p1, p2, config, &userEmail)
 		}(stream)
 	}
 }
 
-func handleClient(p1 *smux.Stream, p2 net.Conn, quiet bool) {
+func handleClient(p1 *smux.Stream, p2 net.Conn, config *Config, email *string) {
+	quiet := config.Quiet
 	logln := func(v ...interface{}) {
 		if !quiet {
 			log.Println(v...)
@@ -149,18 +158,25 @@ func handleClient(p1 *smux.Stream, p2 net.Conn, quiet bool) {
 	defer logln("stream closed", "in:", fmt.Sprint(p1.RemoteAddr(), "(", p1.ID(), ")"), "out:", p2.RemoteAddr())
 
 	// start tunnel & wait for tunnel termination
-	streamCopy := func(dst io.Writer, src io.ReadCloser) {
-		if _, err := generic.Copy(dst, src); err != nil {
+	streamCopy := func(dst io.Writer, src io.ReadCloser, config *Config, isUpStream bool) {
+		if nBytes, err := generic.Copy(dst, src); err != nil {
 			if err == smux.ErrInvalidProtocol {
 				log.Println("smux", err, "in:", fmt.Sprint(p1.RemoteAddr(), "(", p1.ID(), ")"), "out:", p2.RemoteAddr())
+			}else if nBytes>0{
+				//记录流量
+				if isUpStream {
+					config.AuditorMgr.trafficCh<- *email + "," + strconv.FormatInt(nBytes, 10) + ",0"//TODO
+				}else{
+					config.AuditorMgr.trafficCh<- *email + "," + "0,"+ strconv.FormatInt(nBytes, 10) //TODO
+				}
 			}
 		}
 		p1.Close()
 		p2.Close()
 	}
 
-	go streamCopy(p2, p1)
-	streamCopy(p1, p2)
+	go streamCopy(p2, p1, config, true)//上行up C-S
+	streamCopy(p1, p2, config, false)   //下行 S-C
 }
 
 func checkError(err error) {
@@ -345,6 +361,7 @@ func main() {
 		config.Redis = c.String("redis")
 		config.TokenLength = c.Int("tokenlength")
 		config.Bandwidth = c.Int("bandwidth")
+		config.AuditorMgr = NewTrafficAuditor()
 		config.Listen = c.String("listen")
 		config.Target = c.String("target")
 		config.Key = c.String("key")
@@ -502,6 +519,28 @@ func main() {
 			}
 		}
 
+		auditTraffic := func(){
+			ticker := time.Tick(time.Second*30)// 每N秒执行持久化流量到redis的工作
+			for{
+				select{
+				case traffic := <- config.AuditorMgr.trafficCh:
+					t := strings.Split(traffic, ",")
+					email := t[0]
+					upBytes, _ := strconv.ParseInt(t[1], 10, 64)
+					downBytes, _ :=strconv.ParseInt(t[2], 10, 64)
+					config.AuditorMgr.UpdateTraffic(email, upBytes, downBytes)
+				case  <- ticker:
+					log.Println(".............") //TODO 写入redis里并清空
+					for email, auditor := range config.AuditorMgr.auditor{
+						log.Printf("%s: up=%d, down=%d", email, auditor.UpstreamTrafficByte, auditor.DownstreamTrafficByte)
+						auditor.UpstreamTrafficByte = 0
+						auditor.DownstreamTrafficByte = 0
+						//TODO 写入redis
+					}
+				}
+			}
+		}
+
 		if config.TCP { // tcp dual stack
 			if conn, err := tcpraw.Listen("tcp", config.Listen); err == nil {
 				lis, err := kcp.ServeConn(block, config.DataShard, config.ParityShard, conn)
@@ -518,6 +557,7 @@ func main() {
 		checkError(err)
 		wg.Add(1)
 		go loop(lis)
+		go auditTraffic()
 		wg.Wait()
 		return nil
 	}

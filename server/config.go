@@ -13,8 +13,8 @@ type TrafficAudit struct{
 	RateLimitBucket          *ratelimit.Bucket   // 使用这个bucket对属于同一个用户(email)进行限速，流量统计
 
 	//TrafficUpdatorLock       sync.Mutex        //采用chan没有必要用锁了
-	UpstreamTrafficByte      float64             // 上行流量统计
-	DownstreamTrafficByte    float64             // 下行流量
+	UpstreamTrafficByte      int64             // 上行流量统计
+	DownstreamTrafficByte    int64             // 下行流量
 }
 
 func newTrafficAudit() *TrafficAudit  {
@@ -25,7 +25,7 @@ func newTrafficAudit() *TrafficAudit  {
 	return ta
 }
 
-func (ta *TrafficAudit) updateTraffic(upByte float64, downByte float64){
+func (ta *TrafficAudit) updateTraffic(upByte , downByte int64){
 	//采用chan机制，没有必要再用锁了
 	//ta.TrafficUpdatorLock.Lock()
 	//defer ta.TrafficUpdatorLock.Unlock()
@@ -36,11 +36,13 @@ func (ta *TrafficAudit) updateTraffic(upByte float64, downByte float64){
 type AuditorMgr struct {
 	mu sync.Mutex
 	auditor  map[string]*TrafficAudit  // ip:TrafficAudit
+	trafficCh chan string  // 统计流量
 }
 
 func NewTrafficAuditor() *AuditorMgr {
 	auditor := new(AuditorMgr)
 	auditor.auditor = make(map[string]*TrafficAudit, 10)
+	auditor.trafficCh = make(chan string)
 	return auditor
 }
 
@@ -59,7 +61,7 @@ func(this *AuditorMgr) AddAuditor(email string)bool{
 	}
 }
 
-func(this *AuditorMgr)UpdateTraffic(email string, upBytes, downBytes float64){
+func(this *AuditorMgr)UpdateTraffic(email string, upBytes, downBytes int64){
 	if auditor, ok := this.auditor[email]; ok{
 		auditor.updateTraffic(upBytes, downBytes)
 	}else{
@@ -72,7 +74,7 @@ type Config struct {
 	Redis        string `json:"redis"`
 	TokenLength  int `json:"tokenlength"`  // 鉴权token的长度，36
 	Bandwidth    int `json:"bandwidth"`
-	TrafficAuditor *AuditorMgr
+	AuditorMgr *AuditorMgr
 
 	Listen       string `json:"listen"`
 	Target       string `json:"target"`
