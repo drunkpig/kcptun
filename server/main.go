@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"github.com/go-redis/redis/v8"
+	"github.com/mozillazg/request"
 	"io"
 	"log"
 	"math/rand"
@@ -101,6 +102,7 @@ func handleMux(conn net.Conn, config *Config) {
 			authTokenAsRedisKey := string(authToken[:])
 			//get from redis
 			redisServ := NewRedisServer(config.Redis)
+			defer redisServ.Server.Close()
 			jsonval, err := redisServ.Server.Get(context.Background(), authTokenAsRedisKey).Result()
 			if err!=nil{
 				log.Println("redis error: ", err)
@@ -110,12 +112,20 @@ func handleMux(conn net.Conn, config *Config) {
 			}else{
 				if err!=redis.Nil{
 					log.Println("authentication succ! token=", authTokenAsRedisKey)
-					stream.Write([]byte("OKK"))
 					email := gjson.Get(jsonval, "email")
 					userEmail = email.String()
 					log.Println(userEmail)
+					totalTrafficGb, err1 := redisServ.Server.Get(context.Background(), userEmail+"_total_gb").Int64()
+					usedTrafficKb, err2 := redisServ.Server.Get(context.Background(), userEmail+"_total_gb").Int64()
+					if err1==nil && err2==nil{
+						if totalTrafficGb*1024*1024<=usedTrafficKb{ //超过了流量限制
+							isMuxAuthed = false
+							stream.Write([]byte("ERR"))
+						}
+					}
 					config.AuditorMgr.AddAuditor(userEmail)
 					isMuxAuthed = true
+					stream.Write([]byte("OKK"))
 				}else{
 					log.Println("token not exists! token=", authTokenAsRedisKey)
 					isMuxAuthed = false
@@ -212,6 +222,11 @@ func main() {
 			Name:  "bandwidth",
 			Value: 100,
 			Usage: "VPS server max bandwidth (Mbps)",
+		},
+		cli.StringFlag{
+			Name:  "trafficupdateurl",
+			Value: "",
+			Usage: "Traffic auditor url",
 		},
 		cli.StringFlag{
 			Name:  "listen,l",
@@ -362,6 +377,8 @@ func main() {
 		config.TokenLength = c.Int("tokenlength")
 		config.Bandwidth = c.Int("bandwidth")
 		config.AuditorMgr = NewTrafficAuditor()
+		config.TrafficUPdateUrl = c.String("trafficupdateurl")
+
 		config.Listen = c.String("listen")
 		config.Target = c.String("target")
 		config.Key = c.String("key")
@@ -418,6 +435,8 @@ func main() {
 		log.Println("redis:", config.Redis)
 		log.Println("auth token length:", config.TokenLength)
 		log.Println("VPS max bandwidth:", config.Bandwidth)
+		log.Println("user raffic persistence url:", config.TrafficUPdateUrl)
+
 		log.Println("version:", VERSION)
 		log.Println("smux version:", config.SmuxVer)
 		log.Println("listening on:", config.Listen)
@@ -520,23 +539,75 @@ func main() {
 		}
 
 		auditTraffic := func(){
-			ticker := time.Tick(time.Second*30)// 每N秒执行持久化流量到redis的工作
+			ticker := time.Tick(time.Second*31)// 每N秒执行持久化流量到redis的工作
+			ticker2 := time.Tick(time.Second*33)//每10分钟做一次流量持久化到数据库
 			for{
 				select{
-				case traffic := <- config.AuditorMgr.trafficCh:
+				case traffic := <- config.AuditorMgr.trafficCh:   //实际发生流量记录到内存
 					t := strings.Split(traffic, ",")
 					email := t[0]
 					upBytes, _ := strconv.ParseInt(t[1], 10, 64)
 					downBytes, _ :=strconv.ParseInt(t[2], 10, 64)
 					config.AuditorMgr.UpdateTraffic(email, upBytes, downBytes)
-				case  <- ticker:
-					log.Println(".............") //TODO 写入redis里并清空
+				case  <- ticker://从内存放入redis,同时清空内存记录
+					redisServ := NewRedisServer(config.Redis)
+					defer redisServ.Server.Close()
 					for email, auditor := range config.AuditorMgr.auditor{
 						log.Printf("%s: up=%d, down=%d", email, auditor.UpstreamTrafficByte, auditor.DownstreamTrafficByte)
+						if auditor.UpstreamTrafficByte>0{
+							redisServ.Server.IncrBy(context.Background(), email+"_upBytes", auditor.UpstreamTrafficByte)
+						}
+						if auditor.DownstreamTrafficByte>0 {
+							redisServ.Server.IncrBy(context.Background(), email+"_downBytes", auditor.DownstreamTrafficByte)
+						}
 						auditor.UpstreamTrafficByte = 0
 						auditor.DownstreamTrafficByte = 0
-						//TODO 写入redis
 					}
+					case <- ticker2://批量从redis放入数据库.
+						redisServ := NewRedisServer(config.Redis)
+						defer redisServ.Server.Close()
+						trafficInfo := []string{}
+						emails := [] string{}
+						for email, _ := range config.AuditorMgr.auditor{
+							emails = append(emails, email)
+							tk,_ := redisServ.Server.Get(context.Background(), email+"_token").Result()// email对应的token
+							upTraffic,_ := redisServ.Server.Get(context.Background(), email+"_upBytes").Result()// 上行流量
+							downTraffic,_ := redisServ.Server.Get(context.Background(), email+"_downBytes").Result()//下行流量
+							values := []string{tk, upTraffic, downTraffic}
+							trafficInfo = append(trafficInfo, strings.Join(values, ","))
+						}
+						//获取到所有参数之后，上报到数据库
+						data := strings.Join(trafficInfo, ",")
+						c := new(http.Client)
+						req := request.NewRequest(c)
+						if resp, err := req.PostForm(config.TrafficUPdateUrl, map[string]string{"data":data}); err==nil{//TODO
+							if j, err := resp.Json(); err==nil{
+								if code, err := j.Get("code").Int(); err==nil && code==0{
+									//上报成功，清空redis。然后 TODO 去除多余的auditor
+									for _, em :=  range emails{
+										redisServ.Server.Del(context.Background(), em+"_upBytes").Err()
+										redisServ.Server.Del(context.Background(), em+"_downBytes").Err()
+									}
+								}
+								if trafficStatistics, err := j.Get("status").Array();err==nil{//返回数组的数组[[email, totalTraffic, usedTraffic],[]]
+									for _, v := range trafficStatistics{
+										astring := make([]string, len(v.([]interface{})))
+										for i, x:= range v.([]interface{}){
+											astring[i] = x.(string)
+										}
+										email, total, used := astring[0], astring[1], astring[2]
+										log.Println(email, total, used)
+										totalInt, _ := strconv.ParseInt(total, 10, 64)
+										usedInt, _ := strconv.ParseInt(used, 10, 64)
+										e := redisServ.Server.Set(context.Background(), email+"_total_gb", totalInt, -1).Err()
+										e2 := redisServ.Server.Set(context.Background(), email+"_used_kb", usedInt, -1).Err()
+										log.Println(e, e2)
+									}
+								}
+							}
+							defer resp.Body.Close()  // Don't forget close the response body
+						}
+
 				}
 			}
 		}

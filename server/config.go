@@ -75,6 +75,7 @@ type Config struct {
 	TokenLength  int `json:"tokenlength"`  // 鉴权token的长度，36
 	Bandwidth    int `json:"bandwidth"`
 	AuditorMgr *AuditorMgr
+	TrafficUPdateUrl  string `json:"trafficupdateurl"`
 
 	Listen       string `json:"listen"`
 	Target       string `json:"target"`

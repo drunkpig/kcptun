@@ -2,6 +2,7 @@
         "redis": "redis://:@localhost:6379",
         "tokenlength": 36,
         "bandwidth": 100,
+        "trafficupdateurl": "http://localhost:8000/update_traffic",
 
         "listen": ":2000",
         "target": "gw.mkmerich.com:20000",
