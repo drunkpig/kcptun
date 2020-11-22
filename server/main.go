@@ -116,7 +116,7 @@ func handleMux(conn net.Conn, config *Config) {
 					userEmail = email.String()
 					log.Println(userEmail)
 					totalTrafficGb, err1 := redisServ.Server.Get(context.Background(), userEmail+"_total_gb").Int64()
-					usedTrafficKb, err2 := redisServ.Server.Get(context.Background(), userEmail+"_total_gb").Int64()
+					usedTrafficKb, err2 := redisServ.Server.Get(context.Background(), userEmail+"_used_kb").Int64()
 					if err1==nil && err2==nil{
 						if totalTrafficGb*1024*1024<=usedTrafficKb{ //超过了流量限制
 							isMuxAuthed = false
