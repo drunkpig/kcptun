@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/go-redis/redis/v8"
 	"github.com/mozillazg/request"
+	"golang.org/x/crypto/pbkdf2"
 	"io"
 	"log"
 	"math/rand"
@@ -18,14 +19,12 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/pbkdf2"
-
+	"github.com/tidwall/gjson"
 	"github.com/urfave/cli"
 	kcp "github.com/xtaci/kcp-go/v5"
 	"github.com/xtaci/kcptun/generic"
 	"github.com/xtaci/smux"
 	"github.com/xtaci/tcpraw"
-	"github.com/tidwall/gjson"
 )
 
 const (

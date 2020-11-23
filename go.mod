@@ -17,7 +17,7 @@ require (
 	github.com/xtaci/tcpraw v1.2.25
 	golang.org/x/crypto v0.0.0-20200728195943-123391ffb6de
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b // indirect
-
+	//github.com/mitchellh/go-homedir v1.1.0
 )
 
 go 1.14
