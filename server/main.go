@@ -41,16 +41,19 @@ type RedisServer struct {
 	Server *redis.Client
 }
 
-var REDIS_SERVER *RedisServer = nil
-var redisInitLock sync.Once
+//var REDIS_SERVER *RedisServer = nil
+//var redisInitLock sync.Once
 
-func NewRedisServer(redis_url string) *RedisServer{
-	redisInitLock.Do(func() {
-		options, _ := redis.ParseURL(redis_url)
-		s := redis.NewClient(options)
-		REDIS_SERVER = &RedisServer{Server: s}
-	})
-	return REDIS_SERVER
+func NewRedisServer(redis_url string) *redis.Client{
+	//redisInitLock.Do(func() {
+	//	options, _ := redis.ParseURL(redis_url)
+	//	s := redis.NewClient(options)
+	//	REDIS_SERVER = &RedisServer{Server: s}
+	//})
+	//return REDIS_SERVER.Server
+	options, _ := redis.ParseURL(redis_url)
+	s := redis.NewClient(options)
+	return s
 }
 
 
@@ -102,8 +105,8 @@ func handleMux(conn net.Conn, config *Config) {
 			authTokenAsRedisKey := string(authToken[:])
 			//get from redis
 			redisServ := NewRedisServer(config.Redis)
-			defer redisServ.Server.Close()
-			jsonval, err := redisServ.Server.Get(context.Background(), authTokenAsRedisKey).Result()
+			defer redisServ.Close()
+			jsonval, err := redisServ.Get(context.Background(), authTokenAsRedisKey).Result()
 			if err!=nil{
 				log.Println("redis error: ", err)
 				isMuxAuthed = false
@@ -115,8 +118,8 @@ func handleMux(conn net.Conn, config *Config) {
 					email := gjson.Get(jsonval, "email")
 					userEmail = email.String()
 					log.Println(userEmail)
-					totalTrafficGb, err1 := redisServ.Server.Get(context.Background(), userEmail+"_total_gb").Int64()
-					usedTrafficKb, err2 := redisServ.Server.Get(context.Background(), userEmail+"_used_kb").Int64()
+					totalTrafficGb, err1 := redisServ.Get(context.Background(), userEmail+"_total_gb").Int64()
+					usedTrafficKb, err2 := redisServ.Get(context.Background(), userEmail+"_used_kb").Int64()
 					if err1==nil && err2==nil{
 						if totalTrafficGb*1024*1024<=usedTrafficKb{ //超过了流量限制
 							isMuxAuthed = false
@@ -551,28 +554,28 @@ func main() {
 					config.AuditorMgr.UpdateTraffic(email, upBytes, downBytes)
 				case  <- ticker://从内存放入redis,同时清空内存记录
 					redisServ := NewRedisServer(config.Redis)
-					defer redisServ.Server.Close()
+					defer redisServ.Close()
 					for email, auditor := range config.AuditorMgr.auditor{
 						log.Printf("%s: up=%d, down=%d", email, auditor.UpstreamTrafficByte, auditor.DownstreamTrafficByte)
 						if auditor.UpstreamTrafficByte>0{
-							redisServ.Server.IncrBy(context.Background(), email+"_upBytes", auditor.UpstreamTrafficByte)
+							redisServ.IncrBy(context.Background(), email+"_upBytes", auditor.UpstreamTrafficByte)
 						}
 						if auditor.DownstreamTrafficByte>0 {
-							redisServ.Server.IncrBy(context.Background(), email+"_downBytes", auditor.DownstreamTrafficByte)
+							redisServ.IncrBy(context.Background(), email+"_downBytes", auditor.DownstreamTrafficByte)
 						}
 						auditor.UpstreamTrafficByte = 0
 						auditor.DownstreamTrafficByte = 0
 					}
 					case <- ticker2://批量从redis放入数据库.
 						redisServ := NewRedisServer(config.Redis)
-						defer redisServ.Server.Close()
+						defer redisServ.Close()
 						trafficInfo := []string{}
 						emails := [] string{}
 						for email, _ := range config.AuditorMgr.auditor{
 							emails = append(emails, email)
-							tk,_ := redisServ.Server.Get(context.Background(), email+"_token").Result()// email对应的token
-							upTraffic,_ := redisServ.Server.Get(context.Background(), email+"_upBytes").Result()// 上行流量
-							downTraffic,_ := redisServ.Server.Get(context.Background(), email+"_downBytes").Result()//下行流量
+							tk,_ := redisServ.Get(context.Background(), email+"_token").Result()// email对应的token
+							upTraffic,_ := redisServ.Get(context.Background(), email+"_upBytes").Result()// 上行流量
+							downTraffic,_ := redisServ.Get(context.Background(), email+"_downBytes").Result()//下行流量
 							values := []string{tk, upTraffic, downTraffic}
 							trafficInfo = append(trafficInfo, strings.Join(values, ","))
 						}
@@ -585,8 +588,8 @@ func main() {
 								if code, err := j.Get("code").Int(); err==nil && code==0{
 									//上报成功，清空redis。然后 TODO 去除多余的auditor
 									for _, em :=  range emails{
-										redisServ.Server.Del(context.Background(), em+"_upBytes").Err()
-										redisServ.Server.Del(context.Background(), em+"_downBytes").Err()
+										redisServ.Del(context.Background(), em+"_upBytes").Err()
+										redisServ.Del(context.Background(), em+"_downBytes").Err()
 									}
 								}
 								if trafficStatistics, err := j.Get("status").Array();err==nil{//返回数组的数组[[email, totalTraffic, usedTraffic],[]]
@@ -599,15 +602,14 @@ func main() {
 										log.Println(email, total, used)
 										totalInt, _ := strconv.ParseInt(total, 10, 64)
 										usedInt, _ := strconv.ParseInt(used, 10, 64)
-										e := redisServ.Server.Set(context.Background(), email+"_total_gb", totalInt, -1).Err()
-										e2 := redisServ.Server.Set(context.Background(), email+"_used_kb", usedInt, -1).Err()
+										e := redisServ.Set(context.Background(), email+"_total_gb", totalInt, -1).Err()
+										e2 := redisServ.Set(context.Background(), email+"_used_kb", usedInt, -1).Err()
 										log.Println(e, e2)
 									}
 								}
 							}
 							defer resp.Body.Close()  // Don't forget close the response body
 						}
-
 				}
 			}
 		}

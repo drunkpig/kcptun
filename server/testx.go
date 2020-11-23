@@ -1,8 +1,9 @@
 package main
+
 import (
 	"context"
-	"github.com/go-redis/redis/v8"
 	"fmt"
+	"github.com/go-redis/redis/v8"
 )
 
 var ctx = context.Background()
@@ -30,6 +31,11 @@ func mainx() {
 	} else {
 		fmt.Println("key2", val2)
 	}
+	//total := "100"
+	//email := "328233430@qq.com"
+	//totalInt, _ := strconv.ParseInt(total, 10, 64)
+	e := rdb.Set(context.Background(), "_total_gb", 1000, 10000).Err()
+	fmt.Println(e)
 	// Output: key value
 	// key2 does not exist
 }
