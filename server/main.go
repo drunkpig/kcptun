@@ -5,7 +5,6 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"github.com/go-redis/redis/v8"
-	"github.com/mitchellh/go-homedir"
 	"github.com/mozillazg/request"
 	"golang.org/x/crypto/pbkdf2"
 	"io"
@@ -414,7 +413,6 @@ func main() {
 		if c.String("c") != "" {
 			//Now only support json config file
 			err := parseJSONConfig(&config, c.String("c"))
-			config.Log,_ = homedir.Expand(config.Log)
 			checkError(err)
 		}
 
