@@ -1,7 +1,7 @@
 module github.com/xtaci/kcptun
 
 require (
-	github.com/agrison/go-commons-lang v0.0.0-20200208220349-58e9fcb95174
+	github.com/agrison/go-commons-lang v0.0.0-20200208220349-58e9fcb95174 // indirect
 	github.com/bitly/go-simplejson v0.5.0 // indirect
 	github.com/coreos/go-iptables v0.4.2 // indirect
 	github.com/go-redis/redis/v8 v8.3.3
