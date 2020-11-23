@@ -5,7 +5,9 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"github.com/go-redis/redis/v8"
+	"github.com/mitchellh/go-homedir"
 	"github.com/mozillazg/request"
+	"golang.org/x/crypto/pbkdf2"
 	"io"
 	"log"
 	"math/rand"
@@ -18,14 +20,12 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/pbkdf2"
-
+	"github.com/tidwall/gjson"
 	"github.com/urfave/cli"
 	kcp "github.com/xtaci/kcp-go/v5"
 	"github.com/xtaci/kcptun/generic"
 	"github.com/xtaci/smux"
 	"github.com/xtaci/tcpraw"
-	"github.com/tidwall/gjson"
 )
 
 const (
@@ -414,6 +414,7 @@ func main() {
 		if c.String("c") != "" {
 			//Now only support json config file
 			err := parseJSONConfig(&config, c.String("c"))
+			config.Log,_ = homedir.Expand(config.Log)
 			checkError(err)
 		}
 

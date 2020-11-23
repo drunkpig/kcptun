@@ -28,5 +28,6 @@
         "keepalive": 10,
         "pprof":false,
         "quiet":false,
+        "log": "~/server/kcptun-server.log",
         "tcp":false
 }
