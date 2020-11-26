@@ -83,6 +83,9 @@ func handleMux(conn net.Conn, config *Config) {
 		return
 	}
 	defer mux.Close()
+	auditorRefMinus := func(email string){
+		config.AuditorMgr.DelAuditorRef(email)
+	}
 
 	for {
 		stream, err := mux.AcceptStream()
@@ -126,6 +129,7 @@ func handleMux(conn net.Conn, config *Config) {
 						}
 					}
 					config.AuditorMgr.AddAuditor(userEmail)
+					defer auditorRefMinus(userEmail)
 					isMuxAuthed = true
 					stream.Write([]byte("OKK"))
 				}else{
@@ -542,7 +546,8 @@ func main() {
 
 		auditTraffic := func(){
 			ticker := time.Tick(time.Second*31)// 每N秒执行持久化流量到redis的工作
-			ticker2 := time.Tick(time.Second*33)//每10分钟做一次流量持久化到数据库
+			ticker2 := time.Tick(time.Second*60*10)//每10分钟做一次流量持久化到数据库
+			tickerOfflineDevice := time.Tick(time.Second*11) //清除很久没有流量产生的设备Audiror
 			for{
 				select{
 				case traffic := <- config.AuditorMgr.trafficCh:   //实际发生流量记录到内存
@@ -585,7 +590,7 @@ func main() {
 						if resp, err := req.PostForm(config.TrafficUPdateUrl, map[string]string{"data":data}); err==nil{//TODO
 							if j, err := resp.Json(); err==nil{
 								if code, err := j.Get("code").Int(); err==nil && code==0{
-									//上报成功，清空redis。然后 TODO 去除多余的auditor
+
 									for _, em :=  range emails{
 										redisServ.Del(context.Background(), em+"_upBytes").Err()
 										redisServ.Del(context.Background(), em+"_downBytes").Err()
@@ -609,6 +614,9 @@ func main() {
 							}
 							defer resp.Body.Close()  // Don't forget close the response body
 						}
+					case <- tickerOfflineDevice:
+						log.Println("clean offline devices")
+						//TODO
 				}
 			}
 		}

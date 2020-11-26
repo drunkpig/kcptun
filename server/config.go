@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"sync"
 	"github.com/juju/ratelimit"
@@ -9,10 +10,9 @@ import (
 
 // TrafficAudit for ratelimit, traffic statistics
 type TrafficAudit struct{
-	MuxWaitGroup             sync.WaitGroup     //一个客户端会有多个mux连接，要等全部连接都释放才从内存里去掉
+	ConnectCnt               int     //一个客户端会有多个mux连接，要等全部连接都释放才从内存里去掉
 	RateLimitBucket          *ratelimit.Bucket   // 使用这个bucket对属于同一个用户(email)进行限速，流量统计
 
-	//TrafficUpdatorLock       sync.Mutex        //采用chan没有必要用锁了
 	UpstreamTrafficByte      int64             // 上行流量统计
 	DownstreamTrafficByte    int64             // 下行流量
 }
@@ -51,13 +51,42 @@ func(this *AuditorMgr) AddAuditor(email string)bool{
 	//如果email的auditor已经存在就增加引用，否则新建
 	this.mu.Lock()
 	defer this.mu.Unlock()
-	if _, ok := this.auditor[email]; ok{
+	if au, ok := this.auditor[email]; ok{
 		// email相关的结构已经存在
+		au.ConnectCnt++
 		return false
 	}else{
 		ta := newTrafficAudit()
+		ta.ConnectCnt++
 		this.auditor[email] = ta
 		return true
+	}
+}
+
+func(this *AuditorMgr) DelAuditorRef(email string){
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	if au, ok := this.auditor[email]; ok{
+		// email相关的结构已经存在
+		au.ConnectCnt--
+	}else{
+		log.Printf("ERROR %s not exists", email)
+	}
+}
+
+func(this *AuditorMgr)removeAuditor(email string)bool{
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	if au, ok := this.auditor[email]; ok{
+		// email相关的结构已经存在
+		if au.ConnectCnt<=0{
+			delete(this.auditor, email)
+			return true
+		}
+		return false
+	}else{
+		log.Printf("ERROR %s not exists", email)
+		return false
 	}
 }
 
@@ -65,7 +94,7 @@ func(this *AuditorMgr)UpdateTraffic(email string, upBytes, downBytes int64){
 	if auditor, ok := this.auditor[email]; ok{
 		auditor.updateTraffic(upBytes, downBytes)
 	}else{
-		// TODO log error
+		log.Printf("ERROR %s not exists, can not update traffic", email)
 	}
 }
 
