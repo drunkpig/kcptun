@@ -63,6 +63,7 @@ func handleMux(conn net.Conn, config *Config) {
 	// check if target is unix domain socket
 	var isUnix bool
 	var userEmail string
+	var authTokenAsRedisKey string
 	var isMuxAuthed bool = false
 	if _, _, err := net.SplitHostPort(config.Target); err != nil {
 		isUnix = true
@@ -94,7 +95,6 @@ func handleMux(conn net.Conn, config *Config) {
 		}
 
 		//==========================================auth check
-		var authTokenAsRedisKey string
 		if !isMuxAuthed {
 			authToken := make([]byte, config.TokenLength)
 			n, err := stream.Read(authToken) //带超时的read,
