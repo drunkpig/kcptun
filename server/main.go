@@ -94,7 +94,7 @@ func handleMux(conn net.Conn, config *Config) {
 		}
 
 		//==========================================auth check
-		authTokenAsRedisKey := ""
+		var authTokenAsRedisKey string
 		if !isMuxAuthed {
 			authToken := make([]byte, config.TokenLength)
 			n, err := stream.Read(authToken) //带超时的read,
