@@ -72,7 +72,7 @@ func (this *AuditorMgr) DelAuditorRef(token string) {
 		// email相关的结构已经存在
 		au.ConnectCnt--
 	} else {
-		log.Printf("ERROR %s not exists", token)
+		log.Printf("DelAuditorRef ERROR %s not exists", token)
 	}
 }
 
@@ -87,7 +87,7 @@ func (this *AuditorMgr) removeAuditor(token string) bool {
 		}
 		return false
 	} else {
-		log.Printf("ERROR %s not exists", token)
+		log.Printf("removeAuditor ERROR %s not exists", token)
 		return false
 	}
 }
