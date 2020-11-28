@@ -63,6 +63,7 @@ func handleMux(conn net.Conn, config *Config) {
 	// check if target is unix domain socket
 	var isUnix bool
 	var userEmail string
+	var authTokenAsRedisKey string
 	var isMuxAuthed bool = false
 	if _, _, err := net.SplitHostPort(config.Target); err != nil {
 		isUnix = true
@@ -94,7 +95,6 @@ func handleMux(conn net.Conn, config *Config) {
 		}
 
 		//==========================================auth check
-		var authTokenAsRedisKey string
 		if !isMuxAuthed {
 			authToken := make([]byte, config.TokenLength)
 			n, err := stream.Read(authToken) //带超时的read,
@@ -555,8 +555,8 @@ func main() {
 
 		auditTraffic := func() {
 			ticker := time.Tick(time.Second * 31)              // 每N秒执行持久化流量到redis的工作
-			ticker2 := time.Tick(time.Second * 60 * 10)        //每10分钟做一次流量持久化到数据库
-			tickerOfflineDevice := time.Tick(time.Second * 11) //清除很久没有流量产生的设备Audiror
+			ticker2 := time.Tick(time.Second * 31 * 1)         //每10分钟做一次流量持久化到数据库
+			tickerOfflineDevice := time.Tick(time.Second * 31) //清除很久没有流量产生的设备Audiror
 			for {
 				select {
 				case traffic := <-config.AuditorMgr.trafficCh: //实际发生流量记录到内存

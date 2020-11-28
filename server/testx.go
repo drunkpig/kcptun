@@ -39,3 +39,15 @@ func mainx() {
 	// Output: key value
 	// key2 does not exist
 }
+
+func te(xx *string) {
+	fmt.Println(*xx)
+}
+
+func main() {
+	var s string
+
+	s = "abcde"
+
+	te(&s)
+}
