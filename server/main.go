@@ -641,11 +641,14 @@ func main() {
 					if len(tokens) > 0 {
 						data := strings.Join(tokens, ",")
 						req := request.NewRequest(new(http.Client))
-						if _, err := req.PostForm(config.DeviceStatusUpdateUrl, map[string]string{"data": data}); err == nil {
+						if resp, err := req.PostForm(config.DeviceStatusUpdateUrl, map[string]string{"data": data}); err == nil {
 							log.Println("device status update ok")
+							defer resp.Body.Close()
 						} else {
 							log.Println("device status update ERROR")
+							defer resp.Body.Close()
 						}
+
 					}
 					log.Println("clean offline devices end")
 				}
