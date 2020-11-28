@@ -181,9 +181,9 @@ func handleClient(p1 *smux.Stream, p2 net.Conn, config *Config, token *string) {
 			} else if nBytes > 0 {
 				//记录流量
 				if isUpStream {
-					config.AuditorMgr.trafficCh <- *token + "," + strconv.FormatInt(nBytes, 10) + ",0" //TODO
+					config.AuditorMgr.trafficCh <- *token + "," + strconv.FormatInt(nBytes, 10) + ",0"
 				} else {
-					config.AuditorMgr.trafficCh <- *token + "," + "0," + strconv.FormatInt(nBytes, 10) //TODO
+					config.AuditorMgr.trafficCh <- *token + "," + "0," + strconv.FormatInt(nBytes, 10)
 				}
 			}
 		}
