@@ -121,11 +121,13 @@ func handleMux(conn net.Conn, config *Config) {
 					userEmail = email.String()
 					log.Println(userEmail)
 					totalTrafficGb, err1 := redisServ.Get(context.Background(), userEmail+"_total_gb").Int64()
-					usedTrafficKb, err2 := redisServ.Get(context.Background(), userEmail+"_used_kb").Int64()
+					usedTrafficByte, err2 := redisServ.Get(context.Background(), userEmail+"_used_byte").Int64()
 					if err1 == nil && err2 == nil {
-						if totalTrafficGb*1024*1024 <= usedTrafficKb { //超过了流量限制
+						if totalTrafficGb*1024*1024*1024 <= usedTrafficByte { //超过了流量限制
 							isMuxAuthed = false
 							stream.Write([]byte("ERR"))
+							log.Println("超过了流量限制")
+							return
 						}
 					}
 					config.AuditorMgr.AddAuditor(authTokenAsRedisKey, userEmail)
@@ -618,7 +620,7 @@ func main() {
 										totalInt, _ := strconv.ParseInt(total, 10, 64)
 										usedInt, _ := strconv.ParseInt(used, 10, 64)
 										e := redisServ.Set(context.Background(), email+"_total_gb", totalInt, -1).Err()
-										e2 := redisServ.Set(context.Background(), email+"_used_kb", usedInt, -1).Err()
+										e2 := redisServ.Set(context.Background(), email+"_used_byte", usedInt, -1).Err()
 										log.Println(e, e2)
 									}
 								}
