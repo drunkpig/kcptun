@@ -593,8 +593,10 @@ func main() {
 						if err2 != nil {
 							downTraffic = "0"
 						}
-						values := []string{token, upTraffic, downTraffic}
-						trafficInfo = append(trafficInfo, strings.Join(values, ","))
+						if upTraffic != "0" || downTraffic != "0" {
+							values := []string{token, upTraffic, downTraffic}
+							trafficInfo = append(trafficInfo, strings.Join(values, ","))
+						}
 					}
 					//获取到所有参数之后，上报到数据库
 					if len(trafficInfo) > 0 {
