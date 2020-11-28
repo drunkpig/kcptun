@@ -3,6 +3,7 @@
         "tokenlength": 36,
         "bandwidth": 100,
         "trafficupdateurl": "http://localhost:8000/update_traffic",
+        "devicestatusupdateurl": "http://localhost:8000/update_device_online_status",
 
         "listen": ":2000",
         "target": "gw.mkmerich.com:20000",
@@ -28,6 +29,6 @@
         "keepalive": 10,
         "pprof":false,
         "quiet":false,
-        "log": "~/server/kcptun-server.log",
+        "log": "",
         "tcp":false
 }

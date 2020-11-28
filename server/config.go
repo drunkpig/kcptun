@@ -2,30 +2,32 @@ package main
 
 import (
 	"encoding/json"
+	"github.com/juju/ratelimit"
+	"log"
 	"os"
 	"sync"
-	"github.com/juju/ratelimit"
 )
 
 // TrafficAudit for ratelimit, traffic statistics
-type TrafficAudit struct{
-	MuxWaitGroup             sync.WaitGroup     //一个客户端会有多个mux连接，要等全部连接都释放才从内存里去掉
-	RateLimitBucket          *ratelimit.Bucket   // 使用这个bucket对属于同一个用户(email)进行限速，流量统计
+type TrafficAudit struct {
+	Email           string
+	ConnectCnt      int               //引用的次数, 因为一个token可以创建多个连接
+	RateLimitBucket *ratelimit.Bucket // 使用这个bucket对属于同一个用户(email)进行限速，流量统计
 
-	//TrafficUpdatorLock       sync.Mutex        //采用chan没有必要用锁了
-	UpstreamTrafficByte      int64             // 上行流量统计
-	DownstreamTrafficByte    int64             // 下行流量
+	UpstreamTrafficByte   int64 // 上行流量统计
+	DownstreamTrafficByte int64 // 下行流量
 }
 
-func newTrafficAudit() *TrafficAudit  {
+func newTrafficAudit(email string) *TrafficAudit {
 	ta := new(TrafficAudit)
+	ta.Email = email
 	ta.RateLimitBucket = ratelimit.NewBucketWithRate(100*1024, 1*1024*1024) //先测试100KB/s
 	ta.UpstreamTrafficByte = 0
 	ta.DownstreamTrafficByte = 0
 	return ta
 }
 
-func (ta *TrafficAudit) updateTraffic(upByte , downByte int64){
+func (ta *TrafficAudit) updateTraffic(upByte, downByte int64) {
 	//采用chan机制，没有必要再用锁了
 	//ta.TrafficUpdatorLock.Lock()
 	//defer ta.TrafficUpdatorLock.Unlock()
@@ -34,48 +36,78 @@ func (ta *TrafficAudit) updateTraffic(upByte , downByte int64){
 }
 
 type AuditorMgr struct {
-	mu sync.Mutex
-	auditor  map[string]*TrafficAudit  // ip:TrafficAudit
-	trafficCh chan string  // 统计流量
+	mu        sync.Mutex
+	auditor   map[string]*TrafficAudit // token:TrafficAudit
+	trafficCh chan string              // 统计流量
 }
 
-func NewTrafficAuditor() *AuditorMgr {
+func NewTrafficAuditorMgr() *AuditorMgr {
 	auditor := new(AuditorMgr)
-	auditor.auditor = make(map[string]*TrafficAudit, 10)
+	auditor.auditor = make(map[string]*TrafficAudit, 200)
 	auditor.trafficCh = make(chan string)
 	return auditor
 }
 
 //返回值代表是否是新添加的
-func(this *AuditorMgr) AddAuditor(email string)bool{
+func (this *AuditorMgr) AddAuditor(token string, email string) bool {
 	//如果email的auditor已经存在就增加引用，否则新建
 	this.mu.Lock()
 	defer this.mu.Unlock()
-	if _, ok := this.auditor[email]; ok{
+	if au, ok := this.auditor[token]; ok {
 		// email相关的结构已经存在
+		au.ConnectCnt++
 		return false
-	}else{
-		ta := newTrafficAudit()
-		this.auditor[email] = ta
+	} else {
+		ta := newTrafficAudit(email)
+		ta.ConnectCnt++
+		this.auditor[token] = ta
 		return true
 	}
 }
 
-func(this *AuditorMgr)UpdateTraffic(email string, upBytes, downBytes int64){
-	if auditor, ok := this.auditor[email]; ok{
+func (this *AuditorMgr) DelAuditorRef(token string) {
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	if au, ok := this.auditor[token]; ok {
+		// email相关的结构已经存在
+		au.ConnectCnt--
+	} else {
+		log.Printf("ERROR %s not exists", token)
+	}
+}
+
+func (this *AuditorMgr) removeAuditor(token string) bool {
+	this.mu.Lock()
+	defer this.mu.Unlock()
+	if au, ok := this.auditor[token]; ok {
+		// email相关的结构已经存在
+		if au.ConnectCnt <= 0 {
+			delete(this.auditor, token)
+			return true
+		}
+		return false
+	} else {
+		log.Printf("ERROR %s not exists", token)
+		return false
+	}
+}
+
+func (this *AuditorMgr) UpdateTraffic(token string, upBytes, downBytes int64) {
+	if auditor, ok := this.auditor[token]; ok {
 		auditor.updateTraffic(upBytes, downBytes)
-	}else{
-		// TODO log error
+	} else {
+		log.Printf("ERROR %s not exists, can not update traffic", token)
 	}
 }
 
 // Config for server
 type Config struct {
-	Redis        string `json:"redis"`
-	TokenLength  int `json:"tokenlength"`  // 鉴权token的长度，36
-	Bandwidth    int `json:"bandwidth"`
-	AuditorMgr *AuditorMgr
-	TrafficUPdateUrl  string `json:"trafficupdateurl"`
+	Redis                 string `json:"redis"`
+	TokenLength           int    `json:"tokenlength"` // 鉴权token的长度，36
+	Bandwidth             int    `json:"bandwidth"`
+	AuditorMgr            *AuditorMgr
+	TrafficUpdateUrl      string `json:"trafficupdateurl"`
+	DeviceStatusUpdateUrl string `json:"devicestatusupdateurl"`
 
 	Listen       string `json:"listen"`
 	Target       string `json:"target"`
