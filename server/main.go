@@ -583,41 +583,50 @@ func main() {
 					trafficInfo := []string{}
 					for token, _ := range config.AuditorMgr.auditor {
 						//tk,_ := redisServ.Get(context.Background(), email+"_token").Result()// email对应的token
-						upTraffic, _ := redisServ.Get(context.Background(), token+"_upBytes").Result()     // 上行流量
-						downTraffic, _ := redisServ.Get(context.Background(), token+"_downBytes").Result() //下行流量
+						upTraffic, err1 := redisServ.Get(context.Background(), token+"_upBytes").Result()     // 上行流量
+						downTraffic, err2 := redisServ.Get(context.Background(), token+"_downBytes").Result() //下行流量
+						if err1 != nil {
+							upTraffic = "0"
+						}
+						if err2 != nil {
+							downTraffic = "0"
+						}
 						values := []string{token, upTraffic, downTraffic}
 						trafficInfo = append(trafficInfo, strings.Join(values, ","))
 					}
 					//获取到所有参数之后，上报到数据库
-					data := strings.Join(trafficInfo, ",")
-					c := new(http.Client)
-					req := request.NewRequest(c)
-					if resp, err := req.PostForm(config.TrafficUpdateUrl, map[string]string{"data": data}); err == nil {
-						if j, err := resp.Json(); err == nil {
-							if code, err := j.Get("code").Int(); err == nil && code == 0 {
-								for tk, _ := range config.AuditorMgr.auditor {
-									redisServ.Del(context.Background(), tk+"_upBytes").Err()
-									redisServ.Del(context.Background(), tk+"_downBytes").Err()
-								}
-							}
-							if trafficStatistics, err := j.Get("status").Array(); err == nil { //返回数组的数组[[email, totalTraffic, usedTraffic],[]]
-								for _, v := range trafficStatistics {
-									astring := make([]string, len(v.([]interface{})))
-									for i, x := range v.([]interface{}) {
-										astring[i] = x.(string)
+					if len(trafficInfo) > 0 {
+						data := strings.Join(trafficInfo, ",")
+						c := new(http.Client)
+						req := request.NewRequest(c)
+						if resp, err := req.PostForm(config.TrafficUpdateUrl, map[string]string{"data": data}); err == nil {
+							if j, err := resp.Json(); err == nil {
+								if code, err := j.Get("code").Int(); err == nil && code == 0 {
+									for tk, _ := range config.AuditorMgr.auditor {
+										redisServ.Del(context.Background(), tk+"_upBytes").Err()
+										redisServ.Del(context.Background(), tk+"_downBytes").Err()
 									}
-									email, total, used := astring[0], astring[1], astring[2]
-									log.Println(email, total, used)
-									totalInt, _ := strconv.ParseInt(total, 10, 64)
-									usedInt, _ := strconv.ParseInt(used, 10, 64)
-									e := redisServ.Set(context.Background(), email+"_total_gb", totalInt, -1).Err()
-									e2 := redisServ.Set(context.Background(), email+"_used_kb", usedInt, -1).Err()
-									log.Println(e, e2)
+								}
+								if trafficStatistics, err := j.Get("status").Array(); err == nil { //返回数组的数组[[email, totalTraffic, usedTraffic],[]]
+									for _, v := range trafficStatistics {
+										astring := make([]string, len(v.([]interface{})))
+										for i, x := range v.([]interface{}) {
+											astring[i] = x.(string)
+										}
+										email, total, used := astring[0], astring[1], astring[2]
+										log.Println(email, total, used)
+										totalInt, _ := strconv.ParseInt(total, 10, 64)
+										usedInt, _ := strconv.ParseInt(used, 10, 64)
+										e := redisServ.Set(context.Background(), email+"_total_gb", totalInt, -1).Err()
+										e2 := redisServ.Set(context.Background(), email+"_used_kb", usedInt, -1).Err()
+										log.Println(e, e2)
+									}
 								}
 							}
+							defer resp.Body.Close() // Don't forget close the response body
 						}
-						defer resp.Body.Close() // Don't forget close the response body
 					}
+
 				case <-tickerOfflineDevice: //获取到引用为0的token并下线
 					tokens := make([]string, 0, len(config.AuditorMgr.auditor)+1)
 					for tk, _ := range config.AuditorMgr.auditor {
