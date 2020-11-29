@@ -639,7 +639,7 @@ func main() {
 						}
 					}
 					if len(tokens) > 0 {
-						data := strings.Join(tokens, ",")
+						data := strings.Join(tokens, ",0")
 						req := request.NewRequest(new(http.Client))
 						if resp, err := req.PostForm(config.DeviceStatusUpdateUrl, map[string]string{"data": data}); err == nil {
 							log.Println("device status update ok")
