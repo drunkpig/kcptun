@@ -636,10 +636,11 @@ func main() {
 					for tk, _ := range config.AuditorMgr.auditor {
 						if config.AuditorMgr.removeAuditor(tk) { //找到引用为0的，设置为下线状态
 							tokens = append(tokens, tk)
+							tokens = append(tokens, "0") //状态下线
 						}
 					}
 					if len(tokens) > 0 {
-						data := strings.Join(tokens, ",0")
+						data := strings.Join(tokens, ",")
 						req := request.NewRequest(new(http.Client))
 						if resp, err := req.PostForm(config.DeviceStatusUpdateUrl, map[string]string{"data": data}); err == nil {
 							log.Println("device status update ok")
