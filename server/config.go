@@ -81,7 +81,7 @@ func (this *AuditorMgr) removeAuditor(token string) bool {
 	defer this.mu.Unlock()
 	if au, ok := this.auditor[token]; ok {
 		// email相关的结构已经存在
-		if au.ConnectCnt <= 0 {
+		if au.ConnectCnt <= 0 && au.UpstreamTrafficByte == 0 && au.DownstreamTrafficByte == 0 {
 			delete(this.auditor, token)
 			return true
 		}
