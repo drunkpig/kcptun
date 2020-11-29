@@ -44,7 +44,7 @@ func te(xx *string) {
 	fmt.Println(*xx)
 }
 
-func main() {
+func main1() {
 	var s string
 
 	s = "abcde"

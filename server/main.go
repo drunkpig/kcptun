@@ -642,7 +642,9 @@ func main() {
 						data := strings.Join(tokens, ",")
 						req := request.NewRequest(new(http.Client))
 						if resp, err := req.PostForm(config.DeviceStatusUpdateUrl, map[string]string{"data": data}); err == nil {
-							log.Println("device status update ok")
+							txt, _ := resp.Text()
+							log.Printf("========%s", txt)
+							log.Printf("device status update ok, data=%s\n", data)
 							defer resp.Body.Close()
 						} else {
 							log.Println("device status update ERROR")
