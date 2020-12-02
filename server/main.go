@@ -188,6 +188,12 @@ func handleClient(p1 *smux.Stream, p2 net.Conn, config *Config, token *string) {
 					config.AuditorMgr.trafficCh <- *token + "," + "0," + strconv.FormatInt(nBytes, 10)
 				}
 			}
+		} else if nBytes > 0 {
+			if isUpStream {
+				config.AuditorMgr.trafficCh <- *token + "," + strconv.FormatInt(nBytes, 10) + ",0"
+			} else {
+				config.AuditorMgr.trafficCh <- *token + "," + "0," + strconv.FormatInt(nBytes, 10)
+			}
 		}
 		p1.Close()
 		p2.Close()
