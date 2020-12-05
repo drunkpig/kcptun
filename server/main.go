@@ -119,7 +119,7 @@ func handleMux(conn net.Conn, config *Config) {
 					log.Println("authentication succ! token=", authTokenAsRedisKey)
 					email := gjson.Get(jsonval, "email")
 					userEmail = email.String()
-					log.Println(userEmail)
+					//log.Println(userEmail)
 					totalTrafficGb, err1 := redisServ.Get(context.Background(), userEmail+"_total_gb").Int64()
 					usedTrafficByte, err2 := redisServ.Get(context.Background(), userEmail+"_used_byte").Int64()
 					if err1 == nil && err2 == nil {
@@ -575,7 +575,7 @@ func main() {
 					redisServ := NewRedisServer(config.Redis)
 					defer redisServ.Close()
 					for token, auditor := range config.AuditorMgr.auditor {
-						log.Printf("%s: up=%d, down=%d", auditor.Email, auditor.UpstreamTrafficByte, auditor.DownstreamTrafficByte)
+						//log.Printf("%s: up=%d, down=%d", auditor.Email, auditor.UpstreamTrafficByte, auditor.DownstreamTrafficByte)
 						if auditor.UpstreamTrafficByte > 0 {
 							redisServ.IncrBy(context.Background(), token+"_upBytes", auditor.UpstreamTrafficByte)
 						}
@@ -616,6 +616,7 @@ func main() {
 										redisServ.Del(context.Background(), tk+"_upBytes").Err()
 										redisServ.Del(context.Background(), tk+"_downBytes").Err()
 									}
+									log.Println("update traffic to DB ok, ", data)
 								}
 								if trafficStatistics, err := j.Get("status").Array(); err == nil { //返回数组的数组[[email, totalTraffic, usedTraffic],[]]
 									for _, v := range trafficStatistics {
@@ -624,12 +625,11 @@ func main() {
 											astring[i] = x.(string)
 										}
 										email, total, used := astring[0], astring[1], astring[2]
-										log.Println(email, total, used)
+										//log.Println(email, total, used)
 										totalInt, _ := strconv.ParseInt(total, 10, 64)
 										usedInt, _ := strconv.ParseInt(used, 10, 64)
-										e := redisServ.Set(context.Background(), email+"_total_gb", totalInt, -1).Err()
-										e2 := redisServ.Set(context.Background(), email+"_used_byte", usedInt, -1).Err()
-										log.Println(e, e2)
+										redisServ.Set(context.Background(), email+"_total_gb", totalInt, -1).Err()
+										redisServ.Set(context.Background(), email+"_used_byte", usedInt, -1).Err()
 									}
 								}
 							}
@@ -649,15 +649,15 @@ func main() {
 						data := strings.Join(tokens, ",")
 						req := request.NewRequest(new(http.Client))
 						if resp, err := req.PostForm(config.DeviceStatusUpdateUrl, map[string]string{"data": data}); err == nil {
-							log.Println("device status update ok")
+							log.Println("device status update ok ", data)
 							defer resp.Body.Close()
 						} else {
-							log.Println("device status update ERROR")
+							log.Println("device status update ERROR ", data)
 							defer resp.Body.Close()
 						}
 
 					}
-					log.Println("clean offline devices end")
+					//log.Println("clean offline devices end")
 				}
 			}
 		}
