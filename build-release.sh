@@ -85,3 +85,16 @@ done
 #tar -zcf kcptun-linux-mips-$VERSION.tar.gz client_linux_mips server_linux_mips
 #$sum kcptun-linux-mipsle-$VERSION.tar.gz
 #$sum kcptun-linux-mips-$VERSION.tar.gz
+
+
+#Apple M1 device
+os=`uname` #Darwin
+arch=`arch` 
+if [ $os == "Darwin"  ]  && [ $arch == "arm64" ] 
+then
+	env CGO_ENABLED=0 GOOS=darwin GOARCH=$arch go build -mod=vendor -ldflags "$LDFLAGS" -gcflags "$GCFLAGS" -o server_darwin_$arch github.com/xtaci/kcptun/server
+	env CGO_ENABLED=0 GOOS=darwin GOARCH=$arch go build -mod=vendor -ldflags "$LDFLAGS" -gcflags "$GCFLAGS" -o client_darwin_$arch github.com/xtaci/kcptun/client
+	tar -zcf kcptun-darwin-arm64-$VERSION.tar.gz client_darwin_arm64 server_darwin_arm64
+	$sum kcptun-darwin-arm64-$VERSION.tar.gz
+fi
+
