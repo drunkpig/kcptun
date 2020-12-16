@@ -108,6 +108,9 @@ type Config struct {
 	AuditorMgr            *AuditorMgr
 	TrafficUpdateUrl      string `json:"trafficupdateurl"`
 	DeviceStatusUpdateUrl string `json:"devicestatusupdateurl"`
+	Traffic2RedisSecond   int    `json:"traffic2redis"`
+	Traffic2DbSecond      int    `json:"traffic2db"`
+	OfflineChkSecond      int    `json:"offlinechk"`
 
 	Listen       string `json:"listen"`
 	Target       string `json:"target"`

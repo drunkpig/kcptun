@@ -4,6 +4,9 @@
         "bandwidth": 100,
         "trafficupdateurl": "http://localhost:8000/update_traffic",
         "devicestatusupdateurl": "http://localhost:8000/update_device_online_status",
+        "traffic2redis": 61,
+        "traffic2db": 302,
+        "offlinechk": 363,
 
         "listen": ":2000",
         "target": "gw.mkmerich.com:20000",

@@ -247,6 +247,22 @@ func main() {
 			Value: "",
 			Usage: "device status update url",
 		},
+		cli.IntFlag{
+			Name:  "traffic2redis",
+			Value: 60,
+			Usage: "traffic from mem to redis",
+		},
+		cli.IntFlag{
+			Name:  "traffic2db",
+			Value: 60 * 5,
+			Usage: "traffic from redis to db",
+		},
+		cli.IntFlag{
+			Name:  "offlinechk",
+			Value: 60 * 6,
+			Usage: "device status update url",
+		},
+
 		cli.StringFlag{
 			Name:  "listen,l",
 			Value: ":29900",
@@ -398,6 +414,9 @@ func main() {
 		config.AuditorMgr = NewTrafficAuditorMgr()
 		config.TrafficUpdateUrl = c.String("trafficupdateurl")
 		config.DeviceStatusUpdateUrl = c.String("devicestatusupdateurl")
+		config.Traffic2RedisSecond = c.Int("traffic2redis")
+		config.Traffic2DbSecond = c.Int("traffic2db")
+		config.OfflineChkSecond = c.Int("offlinechk")
 
 		config.Listen = c.String("listen")
 		config.Target = c.String("target")
@@ -457,6 +476,9 @@ func main() {
 		log.Println("VPS max bandwidth:", config.Bandwidth)
 		log.Println("user raffic persistence url:", config.TrafficUpdateUrl)
 		log.Println("device status update url:", config.DeviceStatusUpdateUrl)
+		log.Println("interval of traffic from memory to redis", config.Traffic2RedisSecond)
+		log.Println("interval of traffic from redis to db", config.Traffic2DbSecond)
+		log.Println("interval of device offline check", config.OfflineChkSecond)
 
 		log.Println("version:", VERSION)
 		log.Println("smux version:", config.SmuxVer)
@@ -560,8 +582,8 @@ func main() {
 		}
 
 		auditTraffic := func() {
-			ticker := time.Tick(time.Second * 31)              // 每N秒执行持久化流量到redis的工作
-			ticker2 := time.Tick(time.Second * 31 * 1)         //每10分钟做一次流量持久化到数据库
+			tickerMem2redis := time.Tick(time.Second * 31)     // 每N秒执行持久化流量到redis的工作
+			tickerRedis2Db := time.Tick(time.Second * 31 * 1)  //每10分钟做一次流量持久化到数据库
 			tickerOfflineDevice := time.Tick(time.Second * 31) //清除很久没有流量产生的设备Audiror
 			for {
 				select {
@@ -571,7 +593,7 @@ func main() {
 					upBytes, _ := strconv.ParseInt(t[1], 10, 64)
 					downBytes, _ := strconv.ParseInt(t[2], 10, 64)
 					config.AuditorMgr.UpdateTraffic(token, upBytes, downBytes)
-				case <-ticker: //从内存放入redis,同时清空内存记录
+				case <-tickerMem2redis: //从内存放入redis,同时清空内存记录
 					redisServ := NewRedisServer(config.Redis)
 					defer redisServ.Close()
 					for token, auditor := range config.AuditorMgr.auditor {
@@ -585,7 +607,7 @@ func main() {
 						auditor.UpstreamTrafficByte = 0
 						auditor.DownstreamTrafficByte = 0
 					}
-				case <-ticker2: //批量从redis放入数据库.
+				case <-tickerRedis2Db: //批量从redis放入数据库.
 					redisServ := NewRedisServer(config.Redis)
 					defer redisServ.Close()
 					trafficInfo := []string{}
